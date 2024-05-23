@@ -15,7 +15,7 @@ void loop() {
   therm_res_ln = log(thermistor_resistance);
   /*  Steinhart-Hart Thermistor Equation: */
   /*  Temperature in Kelvin = 1 / (A + B[ln(R)] + C[ln(R)]^3)   */
-  /*  where A = 0.001129148, B = 0.000234125 and C = 8.76741*10^-8  */
+
   temperature = ( 1 / ( 0.00053085725+ ( 0.00023960398 * therm_res_ln ) +( 0.0000000423434340345 * therm_res_ln * therm_res_ln * therm_res_ln ) ) ); /* Temperature in Kelvin */
   temperature = temperature - 273.15; /* Temperature in degree Celsius */
   Serial.print("Temperature in degree Celsius = ");
