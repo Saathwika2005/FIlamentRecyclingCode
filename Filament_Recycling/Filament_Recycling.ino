@@ -58,9 +58,9 @@ void getPidValues(){
   if(digitalRead(pushBtn)){
     Serial.println("Enter the value of Kp,Kd,Ki");
     while(Serial.available() == 0);
-    Kp = Serial.parseInt();
-    Kd = Serial.parseInt();
-    Ki = Serial.parseInt();
+    Kp = Serial.parseFloat();
+    Kd = Serial.parseFloat();
+    Ki = Serial.parseFloat();
 
     delay(500);
     Serial.println("The new values of Kp Kd Ki are .. ");
