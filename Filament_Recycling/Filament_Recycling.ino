@@ -78,9 +78,9 @@ void runPidAlgo(int temp){
   elapsedTime = (Time - timePrev) / 1000; 
 
   PID_error = set_temperature - temp;
-  PID_p = 0.01*kp * PID_error;
-  PID_i = 0.01*PID_i + (ki * PID_error);
-  PID_d = 0.01*kd*((PID_error - previous_error)/elapsedTime);
+  PID_p = 0.01*Kp * PID_error;
+  PID_i = 0.01*PID_i + (Ki * PID_error);
+  PID_d = 0.01*Kd*((PID_error - previous_error)/elapsedTime);
 
   PID_value = PID_p + PID_i + PID_d;
 
@@ -103,7 +103,7 @@ void loop() {
   
   int temperature = getThermistorTemperature();
   getPidValues();
-  runPidAlgo();
+  runPidAlgo(temperature);
 
 
   delay(1000);
