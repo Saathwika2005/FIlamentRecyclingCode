@@ -73,23 +73,29 @@ void getPidValues(){
 }
 
 void runPidAlgo(int temp){
-  timePrev = Time;                            // the previous time is stored before the actual time read
+
+  // Calculating time elapsed
+  timePrev = Time;                            
   Time = millis();
   elapsedTime = (Time - timePrev) / 1000; 
 
-  PID_error = set_temperature - temp;
+  // Calculating the PID_Values
+  PID_error = set_temperature - temp + 3;
   PID_p = 0.01*Kp * PID_error;
   PID_i = 0.01*PID_i + (Ki * PID_error);
   PID_d = 0.01*Kd*((PID_error - previous_error)/elapsedTime);
 
+  // PID_Value = P + I + D
   PID_value = PID_p + PID_i + PID_d;
 
   if(PID_value < 0) PID_value = 0;    
   if(PID_value > 255) PID_value = 255; 
 
+  // Negating the signal
   analogWrite(PWM_pin,255-PID_value);
   previous_error = PID_error;
 
+  // Displaying the current temperature
   lcd.clear();
   lcd.setCursor(0,1);
   lcd.print("T:");
@@ -102,26 +108,12 @@ void runPidAlgo(int temp){
 void loop() {
   
   int temperature = getThermistorTemperature();
-  getPidValues();
-  runPidAlgo(temperature);
 
+  // Activating the menu when push button is pressed
+  getPidValues();
+  
+  // Running the pid algo for current temp
+  runPidAlgo(temperature);
 
   delay(1000);
 }
-
-
-
-
-
-
-
-
-
-
-// Serial.print("Temperature in degree Celsius = ");
-  // Serial.print(temperature);
-  // Serial.print("\t\t");
-  // Serial.print(output_voltage);
-  // Serial.print("Resistance in ohms = ");
-  // Serial.print(thermistor_resistance); 
-  // Serial.print("\n\n");
