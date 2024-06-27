@@ -2,8 +2,8 @@
 
 #define initialRadiusOfSpool 8.0 // in cm
 #define spoolerWidth 7.0 // cm 
-#define filamentDiameter 1.75 // in cm
-#define minimumRotationsForOneLayer 4 // no of turns for each layer
+#define filamentDiameter 0.175 // in cm
+#define minimumRotationsForOneLayer 40 // no of turns for each layer
 #define targetLinearVelocity 2.0 // in cm/s
 #define MOTAR_MAX_SPEED 0.43 // in rps
 #define RotaryRotation 60
