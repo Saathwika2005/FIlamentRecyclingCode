@@ -1,6 +1,5 @@
 #include <Encoder.h>
 
-
 // PID control parameters
 float Kp = 100;
 float Ki = 5;
