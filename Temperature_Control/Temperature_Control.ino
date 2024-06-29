@@ -3,7 +3,7 @@
 #include <LiquidCrystal_I2C.h>
 
 #define pushBtn 2
-#define ThermistorPin1 A1
+#define ThermistorPin1 A0
 #define ThermistorPin2 A2
 #define ThermistorPin3 A2
 
@@ -11,7 +11,7 @@
 #define PWM_Pin2 5
 #define PWM_Pin3 6
 
-#define setTemp1 150.00
+#define setTemp1 200.00
 #define setTemp2 200.00
 #define setTemp3 220.00
 
@@ -19,8 +19,8 @@
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 double Kp = 75.3;
-double Ki = 1.3;
-double Kd = 15;
+double Ki = 0;
+double Kd = 10;
 
 double dt, last_time;
 double integral, previous, output = 0;
@@ -70,8 +70,11 @@ void runPidAlgo(double temp,int setTemp,int PWM_Pin){
   Time = millis();
   elapsedTime = (Time - timePrev) / 1000; 
 
-  // // Calculating the PID_Values
+  // Calculating the PID_Values
   PID_error = setTemp - temp;
+
+  Serial.print("elapsedTime Value: ");
+  Serial.println(elapsedTime);
 
   PID_p = Kp * PID_error;
   PID_i = (PID_i + (Ki * PID_error)*elapsedTime);
@@ -80,8 +83,15 @@ void runPidAlgo(double temp,int setTemp,int PWM_Pin){
   // PID_Value = P + I + D
   PID_value = PID_p + PID_i + PID_d;
 
+  Serial.print("PID Value: ");
+  Serial.println(PID_value);
+
   if(PID_value < 0) PID_value = 0; 
   if(PID_value > 255) PID_value = 255; 
+
+  Serial.print("converted Value: ");
+  Serial.println(PID_value);
+
 
   // Plotting set_temp vs current_temp
     Serial.print(setTemp);
