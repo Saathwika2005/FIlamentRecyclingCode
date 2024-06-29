@@ -110,6 +110,7 @@ void loop() {
 
 void runBLDC(){
   int speed = map(motorSpeed, 0, 100, 1000, 2000);
+  if(motorState == false) speed = 1000;
   bldc.write(speed);
 }
 
