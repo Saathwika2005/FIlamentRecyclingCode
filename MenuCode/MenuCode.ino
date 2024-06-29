@@ -3,18 +3,17 @@
 #include <Encoder.h>
 #include <math.h>
 
-
-
+#define lcdEncoderPinA 6
+#define lcdEncoderPinB 7
+#define bldcPin 5 // PWM - Req
+#define enterButtonPin 8
+#define exitButtonPin 9 
 
 // Initialize the LCD with I2C address 0x27 and 16 columns and 2 rows
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // Initialize the Encoder library with the numbers of the interface pins
-Encoder myEnc(6, 7);
-
-// Define pins for Enter and Exit buttons
-const int enterButtonPin = 8;
-const int exitButtonPin = 9;
+Encoder myEnc(lcdEncoderPinA,lcdEncoderPinB);
 
 // Variables to track the menu state
 int level = 0;
@@ -38,10 +37,16 @@ int motorSpeed=0;
 int setTemp=0;
 int currentTemp=0;
 
+// Bldc Motar Params
+Servo bldc;
+
 // Function prototypes
 void enterPressed();
 void exitPressed();
 void encoderChanged();
+void runBLDC();
+
+
 
 void setup() {
   // Initialize the LCD
@@ -52,6 +57,13 @@ void setup() {
   pinMode(enterButtonPin, INPUT_PULLUP);
   pinMode(exitButtonPin, INPUT_PULLUP);
 
+  // Setting up the bldc motor
+  bldc.attach(bldcPin,1000,2000);
+  bldc.write(2000); 
+  delay(2000);
+  bldc.write(1000);
+  delay(2000);
+
   // Initialize the encoder
   myEnc.write(0);
   Serial.begin(9600);
@@ -61,6 +73,8 @@ void loop() {
   // Read the current state of the Enter and Exit buttons
   int enterButtonState = digitalRead(enterButtonPin);
   int exitButtonState = digitalRead(exitButtonPin);
+
+  if(motorState) runBLDC();
 
   // Read the current position of the encoder
   long encoderPosition = myEnc.read();
@@ -93,6 +107,12 @@ void loop() {
   Serial.print("   menu2:");
   Serial.println(menu2);
 }
+
+void runBLDC(){
+  int speed = map(motorSpeed, 0, 100, 1000, 2000);
+  bldc.write(speed);
+}
+
 void blink(){
   if(BLINK){
     if(millis()-prevTime>500){
@@ -747,11 +767,7 @@ void encoderChanged() {
               motorSpeed-=2;
             lcd.setCursor(4,0);
             lcd.print(motorSpeed);
-
-            
-        
       }
-      
     }
     
     // Update display based on the new menu/menu1/menu2 values
@@ -885,7 +901,7 @@ void encoderChanged() {
             if(!motorState)
               lcd.print(">Motor:OFF");
             else 
-              lcd.print(">Motor:ON");
+            lcd.print(">Motor:ON");
             lcd.setCursor(0, 1);
             lcd.print(" Base");
             // Additional code for BLDC menu
@@ -896,9 +912,9 @@ void encoderChanged() {
            lcd.print("TEMP");
            lcd.setCursor(12,1);
            lcd.print(currentTemp);
-          lcd.setCursor(0, 0);
-          lcd.print(" Motor");
-          lcd.setCursor(0, 1);
+           lcd.setCursor(0, 0);
+           lcd.print(" Motor");
+           lcd.setCursor(0, 1);
           if(!baseState)
               lcd.print(">Base:CLOSE");
             else 
@@ -921,5 +937,3 @@ void encoderChanged() {
 
       }
     }
-
-  
