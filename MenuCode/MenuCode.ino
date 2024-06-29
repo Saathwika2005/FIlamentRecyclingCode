@@ -4,14 +4,7 @@
 #include <math.h>
 
 
-#define pushBtn 2
-#define ThermistorPin1 A1
-#define ThermistorPin2 A2
-#define ThermistorPin3 A2
 
-#define PWM_Pin1 3
-#define PWM_Pin2 5
-#define PWM_Pin3 1
 
 // Initialize the LCD with I2C address 0x27 and 16 columns and 2 rows
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -34,10 +27,7 @@ long previousEncoderPosition = -999;
 int previousEnterButtonState = HIGH;
 int previousExitButtonState = HIGH;
 int BLINK=1;
-int setTemp=0;
-int setTemp1=setTemp;
-int setTemp2;
-int setTemp3;
+
 
 int augSpeed=0;
 int spoolSpeed=0;
@@ -45,29 +35,9 @@ unsigned long prevTime=0;
 bool motorState=false;
 bool baseState=false;
 int motorSpeed=0;
-double temp1;
-double temp2;
-double temp3;
-double Kp = 75.3;
-double Ki = 1.3;
-double Kd = 15;
+int setTemp=0;
+int currentTemp=0;
 
-double dt, last_time;
-double integral, previous, output = 0;
-
-float temperature_read = 0.0;
-float PID_error = 0;
-float previous_error = 0;
-float elapsedTime, Time, timePrev,lcdTimePrev;
-double PID_value = 0;
-
-double PID_p = 0;    double PID_i = 0;    double PID_d = 0;
-
-int thermistor_adc_val;
-double output_voltage, thermistor_resistance, therm_res_ln, temperature;
-  
-  
-void runPidAlgo(float,float,int);
 // Function prototypes
 void enterPressed();
 void exitPressed();
@@ -136,15 +106,23 @@ void enterPressed() {
     switch (menu0) {
       case 0:
        lcd.clear();
+       lcd.setCursor(12,0);
+       lcd.print("TEMP");
+       lcd.setCursor(12,1);
+       lcd.print(currentTemp);
        lcd.setCursor(0, 0);
-       lcd.print("> PLA:220C");
+       lcd.print(">PLA:220C");
        lcd.setCursor(0, 1);
-       lcd.print("  ABS");
+       lcd.print(" ABS");
       
       // Additional code for Temperature menu
        break;
       case 1:
         lcd.clear();
+        lcd.setCursor(12,0);
+        lcd.print("TEMP");
+        lcd.setCursor(12,1);
+        lcd.print(currentTemp);
         lcd.setCursor(0, 0);
         lcd.print(">Augerspeed");
         lcd.setCursor(0, 1);
@@ -153,10 +131,17 @@ void enterPressed() {
         break;
       case 2:
         lcd.clear();
+        lcd.setCursor(12,0);
+        lcd.print("TEMP");
+        lcd.setCursor(12,1);
+        lcd.print(currentTemp);
         lcd.setCursor(0,0);
-        lcd.print(">MotorOn");
+        if(!motorState)
+          lcd.print(">Motor:OFF");
+        else 
+          lcd.print(">Motor:ON");
         lcd.setCursor(0, 1);
-        lcd.print(" OpenBase");
+        lcd.print(" Base");
         // Additional code for BLDC menu
         break;
     }
@@ -168,8 +153,12 @@ void enterPressed() {
     if (menu0==0){
       switch (menu1) {
         case 0:
-          setTemp=220;
+         setTemp=220;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("TEMP:");
           lcd.print(setTemp);
@@ -177,8 +166,12 @@ void enterPressed() {
           lcd.print("/ to tune");
           break;
         case 1:
-          setTemp=260;
+         setTemp=260;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("TEMP:");
           lcd.print(setTemp);
@@ -186,8 +179,12 @@ void enterPressed() {
           lcd.print("/ to tune");
           break;
         case 2:
-          setTemp=240;
+         setTemp=240;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("TEMP:");
           lcd.print(setTemp);
@@ -195,8 +192,12 @@ void enterPressed() {
           lcd.print("/ to tune");
           break;
         case 3:
-          setTemp=0;
+         setTemp=100;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("TEMP:");
           lcd.print(setTemp);
@@ -212,6 +213,10 @@ void enterPressed() {
          
           augSpeed=0;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("AUG:");
           lcd.print(augSpeed);
@@ -221,6 +226,10 @@ void enterPressed() {
         case 1:
           spoolSpeed=0;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("SPOOL:");
           lcd.print(spoolSpeed);
@@ -233,18 +242,51 @@ void enterPressed() {
     else  if (menu0==2){
     switch (menu1) {
       case 0:
-      lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(">Motor on");
-        
+      
+        lcd.setCursor(7, 0);
+        if(!motorState){
+           if(!baseState){
+           lcd.print("ON ");
+           motorState=true;
+           }
+           else
+           lcd.print("ERR");
+        }
+        else{
+          lcd.print("OFF");
+          motorState=false;
+
+        }
         // turn on the motor
         break;
       case 1:
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print(">Open base");
-        // open the grinder base
-        break;    
+        
+        lcd.setCursor(6, 1);
+        if(!baseState){
+           lcd.print("OPEN ");
+           baseState=true;
+           motorState=false;
+        }
+        else{
+          lcd.print("CLOSE");
+          baseState=false;
+
+        }
+        // turn on the motor
+        break; 
+      case 2:   
+          motorSpeed=0;
+          lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
+          lcd.setCursor(0, 0);
+          lcd.print("MOTOR:");
+          lcd.print(motorSpeed);
+          lcd.setCursor(0,1);
+          lcd.print("/ to tune");
+          break;
       }
     }
     level = 2;
@@ -253,69 +295,112 @@ void enterPressed() {
   else if (level == 2) {
     if(menu0==0){
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("TEMP:");
           lcd.print(setTemp);
           lcd.setCursor(0,1);
           lcd.print("Tuning");
+
     }
-    else if(menu1==0){
-       switch(menu2){
-        case 0:
-          motorState=true;
+    else if(menu0==1){
+       if (menu1==0){
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print(">MotorOn");
-          lcd.setCursor(0, 1);
-          lcd.print(motorSpeed);
-          break;
-        case 1:
-          motorState=false;
+          lcd.print("AUG:");
+          lcd.print(augSpeed);
+          lcd.setCursor(0,1);
+          lcd.print("Tuning");
+       }
+       
+        else if(menu1==1){
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print(">MotorOff");
-          lcd.setCursor(0, 1);
-          lcd.print(" MotorOn");
-          break; 
-        }
-      }
-       else if(menu1==1){
-        switch(menu2){
+          lcd.print("SPOOL:");
+          lcd.print(spoolSpeed);
+          lcd.setCursor(0,1);
+          lcd.print("Tuning");
+          }
+       }
+    else if(menu0==2 )
+          switch(menu1){
           case 0:
-          baseState=true;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print(" BaseOpen");
-          lcd.setCursor(0, 1);
-          lcd.print(">BaseClose");
+          if(motorState)
+          lcd.print("Turned ON");
+          else
+          lcd.print("Turned OFF");
           break;
-          
           case 1:
-          baseState=false;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print(">BaseOpen");
-          lcd.setCursor(0, 1);
-          lcd.print(" BaseClose");
+          if(baseState){
+          lcd.print("Base Open");
+          lcd.setCursor(0,1);
+          lcd.print("Motor OFF");
+          }
+          else
+          lcd.print("Base close");
           break;
-        }
-       }   
+          case 2:
+          lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
+          lcd.setCursor(0, 0);
+          lcd.print("MOT:");
+          lcd.print(motorSpeed);
+          lcd.setCursor(0,1);
+          lcd.print("Tuning");
+          break;
+       }
+       level = 3;
+  }
+    
+
       
-    level = 3;
-  } 
+      
+    
+  
   else if (level == 3) {
     level=2;
-    if(menu0==0){
-      lcd.setCursor(0,1);
-      lcd.print("/ to tune");
-    }
+    if(menu0==0||menu0==1||(menu0==2 && menu1==2)){
+    lcd.setCursor(0,1);
+    lcd.print("/ to tune");
+    
   }
+}
 }
 
 void exitPressed() {
-  if (level > 0) {
+  if (level >0) {
     level--;
     lcd.clear();
+    lcd.setCursor(12,0);
+    lcd.print("TEMP");
+    lcd.setCursor(12,1);
+    lcd.print(currentTemp);
     if (level == 0) { 
       switch (menu0) {
         case 0:
@@ -323,21 +408,21 @@ void exitPressed() {
         lcd.setCursor(0,0);
         lcd.print(" MENU");
         lcd.setCursor(0, 1);
-        lcd.print("> Set Temp");
+        lcd.print(">Set Temp");
       // Additional code for Temperature menu
         break;
       case 1:
-       
-        lcd.print("  Set Temp");
+       lcd.setCursor(0,0);
+        lcd.print(" Set Temp");
         lcd.setCursor(0, 1);
-        lcd.print("> Set Speed");
+        lcd.print(">Set Speed"); 
         // Additional code for Speed menu
         break;
       case 2:
-        
-        lcd.print("  Set Speed");
+        lcd.setCursor(0,0);
+        lcd.print(" Set Speed");
         lcd.setCursor(0, 1);
-        lcd.print("> BLDC");
+        lcd.print(">BLDC");
         // Additional code for BLDC menu
         break;
       }
@@ -347,27 +432,27 @@ void exitPressed() {
         switch (menu1) {
           case 0:
           lcd.setCursor(0, 0);
-          lcd.print("> PLA :220C");
+          lcd.print(">PLA :220C");
           lcd.setCursor(0, 1);
-          lcd.print("  ABS");
+          lcd.print(" ABS");
           break;
           case 1:
           lcd.setCursor(0, 0);
-          lcd.print("> ABS :260C");
+          lcd.print(">ABS :260C");
           lcd.setCursor(0, 1);
-          lcd.print("  PETG");
+          lcd.print(" PETG");
           break;
           case 2:
           lcd.setCursor(0, 0);
-          lcd.print("> PETG:245C");
+          lcd.print(">PETG:245C");
           lcd.setCursor(0, 1);
-          lcd.print("  ManualSet");
+          lcd.print(" ManualSet");
           break;
           case 3:
           lcd.setCursor(0, 0);
-          lcd.print("> ManualSet:0C");
+          lcd.print(">Manual:100C");
           lcd.setCursor(0, 1);
-          lcd.print("  PLA");
+          lcd.print(" PLA");
           break;
           // Add code to display items in menu1
         }
@@ -376,6 +461,10 @@ void exitPressed() {
         switch(menu1){
           case 0:
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print(">Augerspeed");
           lcd.setCursor(0, 1);
@@ -383,6 +472,10 @@ void exitPressed() {
           break;
           case 1:
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print(" Augerspeed");
           lcd.setCursor(0, 1);
@@ -393,29 +486,58 @@ void exitPressed() {
     else if(menu0==2){
         switch(menu1){
           case 0:
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print(">MotorOn ");
-          lcd.setCursor(0, 1);
-          lcd.print(" OpenBase");
-          break;
+            lcd.clear();
+            lcd.setCursor(12,0);
+            lcd.print("TEMP");
+            lcd.setCursor(12,1);
+            lcd.print(currentTemp);
+            lcd.setCursor(0,0);
+            if(!motorState)
+              lcd.print(">Motor:OFF");
+            else 
+              lcd.print(">Motor:ON");
+            lcd.setCursor(0, 1);
+            lcd.print(" Base");
+            // Additional code for BLDC menu
+            break;
           case 1:
            lcd.clear();
+           lcd.setCursor(12,0);
+           lcd.print("TEMP");
+           lcd.setCursor(12,1);
+           lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print(" MotorOn");
+          lcd.print(" Motor");
           lcd.setCursor(0, 1);
-          lcd.print(">OpenBase");
+          if(!baseState)
+              lcd.print(">Base:CLOSE");
+            else 
+              lcd.print(">Base:OPEN");
           break;
+          case 2:
+          lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
+          lcd.setCursor(0,0);
+          lcd.print(" Base");
+          lcd.setCursor(0,1);
+          lcd.print(">MSpeed");
           }
-    }
+        }
     }
 
     else if (level == 2) {
      if(menu0==0){ 
       switch (menu1) {
         case 0:
-          setTemp=220;
+         setTemp=220;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("TEMP:");
           lcd.print(setTemp);
@@ -423,8 +545,12 @@ void exitPressed() {
           lcd.print("/ to tune");
           break;
         case 1:
-          setTemp=260;
+         setTemp=260;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("TEMP:");
           lcd.print(setTemp);
@@ -432,8 +558,12 @@ void exitPressed() {
           lcd.print("/ to tune");
           break;
         case 2:
-          setTemp=245;
+         setTemp=245;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("TEMP:");
           lcd.print(setTemp);
@@ -441,8 +571,12 @@ void exitPressed() {
           lcd.print("/ to tune");
           break;
         case 3:
-          setTemp=0;
+         setTemp=100;
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("TEMP:");
           lcd.print(setTemp);
@@ -451,8 +585,68 @@ void exitPressed() {
           break; 
         }
       }
-    }
-  }
+      else if(menu0==1){
+        switch (menu1) {
+        case 0:
+         
+          augSpeed=0;
+          lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
+          lcd.setCursor(0, 0);
+          lcd.print("AUG:");
+          lcd.print(augSpeed);
+          lcd.setCursor(0,1);
+          lcd.print("/ to tune");
+          break;
+        case 1:
+          spoolSpeed=0;
+          lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
+          lcd.setCursor(0, 0);
+          lcd.print("SPOOL:");
+          lcd.print(spoolSpeed);
+          lcd.setCursor(0,1);
+          lcd.print("/ to tune");
+          break;
+         
+      }
+
+      }
+      else if(menu0==2){ 
+         if(menu1==0||menu1==1)
+           {
+            lcd.clear();
+            lcd.setCursor(12,0);
+            lcd.print("TEMP");
+            lcd.setCursor(12,1);
+            lcd.print(currentTemp);
+            lcd.setCursor(0, 0);
+            lcd.print("Press Exit");
+
+           }
+
+        else if(menu1==2){
+          motorSpeed=0;
+          lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
+          lcd.setCursor(0, 0);
+          lcd.print("MOT:");
+          lcd.print(motorSpeed);
+          lcd.setCursor(0,1);
+          lcd.print("Tuning");
+      }
+      }
+  } 
+}
 }
 
 void encoderChanged() {
@@ -461,9 +655,9 @@ void encoderChanged() {
 
   if (change != 0) {
     if (level == 0) {
-      if (change > 0) {
+      if (change >0) {
         menu0++;
-        if (menu0 > 2) menu0 = 0;  // Assuming there are 3 items in the top-level menu
+        if (menu0 >2) menu0 = 0;  // Assuming there are 3 items in the top-level menu
       } 
       else {
         menu0--;
@@ -471,10 +665,10 @@ void encoderChanged() {
       }
     }
     else if (level == 1) {
-     if(menu0==0){
-        if (change > 0) {
+     if(menu0==0){ 
+        if (change >0) {
           menu1++;
-          if (menu1 > 3) menu1 = 0;
+          if (menu1 >3) menu1 = 0;
           // Adjust based on the number of items in menu1
         }
         else {
@@ -484,9 +678,9 @@ void encoderChanged() {
         }
      }
      else if(menu0==1){
-        if (change > 0) {
+        if (change >0) {
           menu1++;
-          if (menu1 > 1) menu1 = 0;
+          if (menu1 >1) menu1 = 0;
           // Adjust based on the number of items in menu1
         }
         else {
@@ -496,14 +690,14 @@ void encoderChanged() {
         }
      }
       else if(menu0==2){
-        if (change > 0) {
+        if (change >0) {
           menu1++;
-          if (menu1 > 1) menu1 = 0;
+          if (menu1 >2) menu1 = 0;
           // Adjust based on the number of items in menu1
         }
         else {
           menu1--;
-          if (menu1 < 0) menu1 = 1;
+          if (menu1 < 0) menu1 = 2;
           // Adjust based on the number of items in menu1
         }
 
@@ -512,35 +706,17 @@ void encoderChanged() {
 
 
      }
-    else if (level == 2) {
-     if(menu0==2 && !motorState){
-        if (change > 0) {
-          menu2++;
-          if (menu2 > 1) menu2 = 0;
-          // Adjust based on the number of items in menu1
-        }
-        else {
-          menu1--;
-          if (menu2 < 0) menu2 = 1;
-          // Adjust based on the number of items in menu1
-        }
-     }
-     else
-     {
-       if(change>0)
-            motorSpeed+=2;
-          else
-            motorSpeed-=2;
-     }}
+    
+     
    
     
     else if(level==3){
       switch(menu0){
         case 0:
           if(change>0)
-            setTemp+=2;
+           setTemp+=2;
           else
-            setTemp-=2;
+           setTemp-=2;
           lcd.setCursor(5,0);
           lcd.print(setTemp);
           break;
@@ -550,7 +726,7 @@ void encoderChanged() {
               augSpeed+=2;
             else
               augSpeed-=2;
-            lcd.setCursor(5,0);
+            lcd.setCursor(4,0);
             lcd.print(augSpeed);
 
             }
@@ -559,10 +735,19 @@ void encoderChanged() {
               spoolSpeed+=2;
             else
               spoolSpeed-=2;
-            lcd.setCursor(5,0);
+            lcd.setCursor(6,0);
             lcd.print(spoolSpeed);
 
             }
+            break;
+        case 2:
+          if(change>0)
+              motorSpeed+=2;
+            else
+              motorSpeed-=2;
+            lcd.setCursor(4,0);
+            lcd.print(motorSpeed);
+
             
         
       }
@@ -574,25 +759,39 @@ void encoderChanged() {
       switch (menu0) {
         case 0:
         lcd.clear();
+        lcd.setCursor(12,0);
+        lcd.print("TEMP");
+        lcd.setCursor(12,1);
+        lcd.print(currentTemp);
         lcd.setCursor(0,0);
         lcd.print(" MENU");
         lcd.setCursor(0, 1);
-        lcd.print("> Set Temp");
+        lcd.print(">Set Temp");
       // Additional code for Temperature menu
         break;
       case 1:
        lcd.clear();
-        lcd.print("  Set Temp");
+       lcd.setCursor(12,0);
+       lcd.print("TEMP");
+       lcd.setCursor(12,1);
+       lcd.print(currentTemp);
+        lcd.setCursor(0,0);
+        lcd.print(" Set Temp");
         lcd.setCursor(0, 1);
-        lcd.print("> Set Speed");
+        lcd.print(">Set Speed");
         // Additional code for Speed menu
         break;
       case 2:
         
         lcd.clear();
-        lcd.print("  Set Speed");
+        lcd.setCursor(12,0);
+        lcd.print("TEMP");
+        lcd.setCursor(12,1);
+        lcd.print(currentTemp);
+         lcd.setCursor(0,0);
+        lcd.print(" Set Speed");
         lcd.setCursor(0, 1);
-        lcd.print("> BLDC");
+        lcd.print(">BLDC");
         // Additional code for BLDC menu
         break;
       }
@@ -602,31 +801,47 @@ void encoderChanged() {
         switch (menu1) {
           case 0:
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print("> PLA :220C");
+          lcd.print(">PLA :220C");
           lcd.setCursor(0, 1);
-          lcd.print("  ABS");
+          lcd.print(" ABS");
           break;
           case 1:
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print("> ABS :260C");
+          lcd.print(">ABS :260C");
           lcd.setCursor(0, 1);
-          lcd.print("  PETG");
+          lcd.print(" PETG");
           break;
           case 2:
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print("> PETG:245C");
+          lcd.print(">PETG:245C");
           lcd.setCursor(0, 1);
-          lcd.print("  ManualSet");
+          lcd.print(" ManualSet");
           break;
           case 3:
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print("> ManualSet:0C");
+          lcd.print(">Manual:100C");
           lcd.setCursor(0, 1);
-          lcd.print("  PLA");
+          lcd.print(" PLA");
         
           break;
           // Add code to display items in menu1
@@ -636,6 +851,10 @@ void encoderChanged() {
         switch(menu1){
           case 0:
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print(">Augerspeed");
           lcd.setCursor(0, 1);
@@ -643,6 +862,10 @@ void encoderChanged() {
           break;
           case 1:
           lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print(" Augerspeed");
           lcd.setCursor(0, 1);
@@ -653,77 +876,50 @@ void encoderChanged() {
       else if(menu0==2){
         switch(menu1){
           case 0:
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print(">MotorOn ");
-          lcd.setCursor(0, 1);
-          lcd.print(" OpenBase");
-          break;
+            lcd.clear();
+            lcd.setCursor(12,0);
+            lcd.print("TEMP");
+            lcd.setCursor(12,1);
+            lcd.print(currentTemp);
+            lcd.setCursor(0,0);
+            if(!motorState)
+              lcd.print(">Motor:OFF");
+            else 
+              lcd.print(">Motor:ON");
+            lcd.setCursor(0, 1);
+            lcd.print(" Base");
+            // Additional code for BLDC menu
+            break;
           case 1:
            lcd.clear();
+           lcd.setCursor(12,0);
+           lcd.print("TEMP");
+           lcd.setCursor(12,1);
+           lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          lcd.print(" MotorOn");
+          lcd.print(" Motor");
           lcd.setCursor(0, 1);
-          lcd.print(">OpenBase");
+          if(!baseState)
+              lcd.print(">Base:CLOSE");
+            else 
+              lcd.print(">Base:OPEN");
           break;
+          case 2:
+          lcd.clear();
+          lcd.setCursor(12,0);
+          lcd.print("TEMP");
+          lcd.setCursor(12,1);
+          lcd.print(currentTemp);
+          lcd.setCursor(0,0);
+          lcd.print(">MSpeed");
+          lcd.setCursor(0,1);
+          lcd.print(" Motor");
           }
         }          
       }
       
-  else if (level == 2) {
-    if(menu0==1){
-         if(menu1==0){
-          //finetuning
-          lcd.setCursor(8,0);
-          lcd.print(augSpeed);
-        }
-        else if(menu1==1){
-          lcd.setCursor(8,0);
-          lcd.print(spoolSpeed);
-        }
 
-      }
-   else if(menu0==2){
-        if(menu1==0){
-          switch(menu2){
-          case 0:
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print(">MotorOn");
-          lcd.setCursor(0, 1);
-          lcd.print(motorSpeed);
-          break;
-          case 1:
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print(">MotorOff");
-          lcd.setCursor(0, 1);
-          lcd.print(" MotorOn");
-          break;
-
-
-        }
-        }
-        else if(menu1==1){
-          switch(menu2){
-          case 0:
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print(" BaseOpen");
-          lcd.setCursor(0, 1);
-          lcd.print(">BaseClose");
-          break;
-          case 1:
-          lcd.clear();
-          lcd.setCursor(0, 0);
-          lcd.print(">BaseOpen");
-          lcd.setCursor(0, 1);
-          lcd.print(" BaseClose");
-          break;
-          }
-          }
-
-        }
-        }
       }
     }
+
+  
