@@ -1,35 +1,27 @@
 #include <Servo.h>
-#include <ezButton.h>
-
-#define GBaseSwitchPin 7
-
-Servo gbase;
-
-ezButton limitSwitch(GBaseSwitchPin);  // create ezButton object that attach to pin 7;
-int val;
-
-// Constants for wait time after G-Base has opened
-float time; // in s
-float prevTime; // in s
-
+int GBaseSwitchPin=7;
+Servo gbase1;
 void setup() {
-  s1.attach(9);
-  Serial.begin(9600);
-  limitSwitch.setDebounceTime(50);
-}
+  gbase1.attach(9);
+  pinMode(GBaseSwitchPin,INPUT_PULLUP);
+  }
 
 void loop() {
-  limitSwitch.loop();
-  int state = limitSwitch.getState();
-  
-  /* Idea is to
-     After gbase open menu is selected
-     do servo write 45 to open till state is 
-     after that wait for 2 sec using  millis() and prevMillis technique
-     close the gbase 
-  */
-  
-  // 45->open
-  // 135->close
-
+GBase(baseState);
 }
+void GBase(int baseState){
+  if(baseState){
+     gbase1.write(45);
+     delay(500);
+     while(digitalRead(GBaseSwitchPin))
+       gbase1.write(45);
+     gbase1.write(90);
+  }
+  else{
+    gbase1.write(135);
+    delay(500);
+    while(digitalRead(GBaseSwitchPin))
+      gbase1.write(135);
+    gbase1.write(90);
+  }  
+}  
