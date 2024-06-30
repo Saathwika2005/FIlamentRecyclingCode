@@ -2,6 +2,8 @@
 #include <LiquidCrystal_I2C.h>
 #include <Encoder.h>
 #include <math.h>
+#include <Servo.h>
+
 int ThermistorPin1=A0;
 int ThermistorPin2=A2;
 int ThermistorPin3=A2;
@@ -64,6 +66,8 @@ double PID_p = 0;    double PID_i = 0;    double PID_d = 0;
 int thermistor_adc_val;
 double output_voltage, thermistor_resistance, therm_res_ln, temperature; 
 
+int GBaseSwitchPin=7;
+Servo gbase1;
 
 // Bldc Motar Params
 Servo bldc;
@@ -93,6 +97,8 @@ void setup() {
   bldc.write(1000);
   delay(2000);
 
+  gbase1.attach(9);
+  pinMode(GBaseSwitchPin,INPUT_PULLUP);
   // Initialize the encoder
   myEnc.write(0);
   Serial.begin(9600);
@@ -184,6 +190,22 @@ void runPidAlgo(double temp,int setTemp,int PWM_Pin){
   delay(20);
   return temp;
 }
+void GBase(int baseState){
+  if(baseState){
+     gbase1.write(45);
+     delay(500);
+     while(digitalRead(GBaseSwitchPin))
+       gbase1.write(45);
+     gbase1.write(90);
+  }
+  else{
+    gbase1.write(135);
+    delay(500);
+    while(digitalRead(GBaseSwitchPin))
+      gbase1.write(135);
+    gbase1.write(90);
+  }  
+}  
 
 
 void enterPressed() {
@@ -350,11 +372,13 @@ void enterPressed() {
         if(!baseState){
            lcd.print("OPEN ");
            baseState=true;
+           GBase(baseState);
            motorState=false;
         }
         else{
           lcd.print("CLOSE");
           baseState=false;
+          GBase(baseState);
 
         }
         // turn on the motor
