@@ -4,26 +4,33 @@
 #include <math.h>
 #include <Servo.h>
 
-int ThermistorPin1=A0;
-int ThermistorPin2=A2;
-int ThermistorPin3=A2;
+// Analog Pins
+#define ThermistorPin1 A0
+#define ThermistorPin2 A1
+#define ThermistorPin3 A2
+#define gBaselimitSwitch A3
+// A4-> SDA A5->SCL
 
-#define PWM_Pin1 3
-#define PWM_Pin2 5
-#define PWM_Pin3 6
+// Digital Pins
+#define spoolerEncoderPinA 13
+#define gBaseServoPin 12
+#define temp_PWM_Pin1 11 // ~
+#define temp_PWM_Pin2 10 // ~
+#define temp_PWM_Pin3 9 // ~
+#define bldcPin 8
+#define lcdEncoderPinB 7
+#define spoolHBridge 6 // ~
+#define augerHBridge 5 // ~
+#define lcdEncoderPinA 4 
+#define spoolerEncoderPinB 3 // ~
+#define augerEncoderPin 2 // interrupts
+#define enterButtonPin 1
+#define exitButtonPin 0 
 
 int setTemp=0;
-
-
 double temp1;
 double temp2;
 double temp3;
-
-#define lcdEncoderPinA 6
-#define lcdEncoderPinB 7
-#define bldcPin 5 // PWM - Req
-#define enterButtonPin 8
-#define exitButtonPin 9 
 
 // Initialize the LCD with I2C address 0x27 and 16 columns and 2 rows
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -42,35 +49,33 @@ long previousEncoderPosition = -999;
 int previousEnterButtonState = HIGH;
 int previousExitButtonState = HIGH;
 
-int augSpeed=0;
-int spoolSpeed=0;
-unsigned long prevTime=0;
-bool motorState=false;
+// Bldc Motar Variables
+Servo bldc;
+bool bldc_motorState=false;
+int bldc_motorSpeed=0;
+
+// G Base Variables
+Servo gBaseServo;
 bool baseState=false;
-int motorSpeed=0;
-double Kp = 75.3;
-double Ki = 0;
-double Kd = 10;
 
-double dt, last_time;
-double integral, previous, output = 0;
+// Auger Variables
+int augSpeed=0;
 
-float temperature_read = 0.0;
-float PID_error = 0;
-float previous_error = 0;
-float elapsedTime, Time, timePrev,lcdTimePrev;
-double PID_value = 0;
+// Spooler Variables
+int spoolSpeed=0;
 
-double PID_p = 0;    double PID_i = 0;    double PID_d = 0;
+// PID for Temp
+double tempKp = 75.3;
+double tempKi = 0;
+double tempKd = 10;
+float temp_PID_error = 0;
+float temp_previous_error = 0;
+float temp_pid_timePrev;
 
+// Thermistor Variables
 int thermistor_adc_val;
 double output_voltage, thermistor_resistance, therm_res_ln, temperature; 
 
-int GBaseSwitchPin=7;
-Servo gbase1;
-
-// Bldc Motar Params
-Servo bldc;
 
 // Function prototypes
 void enterPressed();
@@ -86,9 +91,9 @@ void setup() {
   // Set up the pushbutton pins as input with pull-up resistors
   pinMode(enterButtonPin, INPUT_PULLUP);
   pinMode(exitButtonPin, INPUT_PULLUP);
-  pinMode(PWM_Pin1,OUTPUT);
-  pinMode(PWM_Pin2,OUTPUT);
-  pinMode(PWM_Pin3,OUTPUT);
+  pinMode(temp_PWM_Pin1,OUTPUT);
+  pinMode(temp_PWM_Pin2,OUTPUT);
+  pinMode(temp_PWM_Pin3,OUTPUT);
 
   // Setting up the bldc motor
   bldc.attach(bldcPin,1000,2000);
@@ -97,8 +102,10 @@ void setup() {
   bldc.write(1000);
   delay(2000);
 
-  gbase1.attach(9);
-  pinMode(GBaseSwitchPin,INPUT_PULLUP);
+  // Setting up gBase servo and switch
+  gBaseServo.attach(gBaseServoPin);
+  pinMode(gBaselimitSwitch,INPUT_PULLUP);
+
   // Initialize the encoder
   myEnc.write(0);
   Serial.begin(9600);
@@ -112,7 +119,7 @@ void loop() {
   temp2 = getThermistorTemperature(ThermistorPin2);
   temp3 = getThermistorTemperature(ThermistorPin3);
 
-  if(motorState) runBLDC();
+  if(bldc_motorState) runBLDC();
 
   // Read the current position of the encoder
   long encoderPosition = myEnc.read();
@@ -147,8 +154,8 @@ void loop() {
 }
 
 void runBLDC(){
-  int speed = map(motorSpeed, 0, 100, 1000, 2000);
-  if(motorState == false) speed = 1000;
+  int speed = map(bldc_motorSpeed, 0, 100, 1000, 2000);
+  if(bldc_motorState == false) speed = 1000;
   bldc.write(speed);
 }
 
@@ -167,43 +174,44 @@ int getThermistorTemperature(int pin){
 }
 void runPidAlgo(double temp,int setTemp,int PWM_Pin){
 
-  // // Calculating time elapsed
-  timePrev = Time;                            
-  Time = millis();
-  elapsedTime = (Time - timePrev) / 1000; 
+  // Calculating time elapsed
+  temp_pid_timePrev = Time;                            
+  int Time = millis();
+  double elapsedTime = (Time - temp_pid_timePrev) / 1000; 
 
   // Calculating the PID_Values
-  PID_error = setTemp - temp;
-  PID_p = Kp * PID_error;
-  PID_i = (PID_i + (Ki * PID_error)*elapsedTime);
-  PID_d = Kd*((PID_error - previous_error)/elapsedTime);
+  temp_PID_error = setTemp - temp;
+  double PID_p = tempKp * temp_PID_error;
+  double PID_i = (PID_i + (tempKi * temp_PID_error)*elapsedTime);
+  double ID_d = tempKd*((temp_PID_error - previous_error)/elapsedTime);
 
   // PID_Value = P + I + D
-  PID_value = PID_p + PID_i + PID_d;
+  double PID_value = PID_p + PID_i + PID_d;
   if(PID_value < 0) PID_value = 0; 
   if(PID_value > 255) PID_value = 255; 
 
   // Plotting set_temp vs current_temp
    
   analogWrite(PWM_Pin,255-PID_value);
-  previous_error = PID_error;
+  temp_previous_error = temp_PID_error;
   delay(20);
   return temp;
 }
+
 void GBase(int baseState){
   if(baseState){
-     gbase1.write(45);
+     gBaseServo.write(45);
      delay(500);
-     while(digitalRead(GBaseSwitchPin))
-       gbase1.write(45);
-     gbase1.write(90);
+     while(digitalRead(gBaselimitSwitch))
+       gBaseServo.write(45);
+     gBaseServo.write(90);
   }
   else{
-    gbase1.write(135);
+    gBaseServo.write(135);
     delay(500);
-    while(digitalRead(GBaseSwitchPin))
-      gbase1.write(135);
-    gbase1.write(90);
+    while(digitalRead(gBaselimitSwitch))
+      gBaseServo.write(135);
+    gBaseServo.write(90);
   }  
 }  
 
@@ -243,7 +251,7 @@ void enterPressed() {
         lcd.setCursor(12,1);
         lcd.print(currentTemp);
         lcd.setCursor(0,0);
-        if(!motorState)
+        if(!bldc_motorState)
           lcd.print(">Motor:OFF");
         else 
           lcd.print(">Motor:ON");
@@ -351,17 +359,17 @@ void enterPressed() {
       case 0:
       
         lcd.setCursor(7, 0);
-        if(!motorState){
+        if(!bldc_motorState){
            if(!baseState){
            lcd.print("ON ");
-           motorState=true;
+           bldc_motorState=true;
            }
            else
            lcd.print("ERR");
         }
         else{
           lcd.print("OFF");
-          motorState=false;
+          bldc_motorState=false;
 
         }
         // turn on the motor
@@ -373,7 +381,7 @@ void enterPressed() {
            lcd.print("OPEN ");
            baseState=true;
            GBase(baseState);
-           motorState=false;
+           bldc_motorState=false;
         }
         else{
           lcd.print("CLOSE");
@@ -384,7 +392,7 @@ void enterPressed() {
         // turn on the motor
         break; 
       case 2:   
-          motorSpeed=0;
+          bldc_motorSpeed=0;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -392,7 +400,7 @@ void enterPressed() {
           lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("MOTOR:");
-          lcd.print(motorSpeed);
+          lcd.print(bldc_motorSpeed);
           lcd.setCursor(0,1);
           lcd.print("/ to tune");
           break;
@@ -451,7 +459,7 @@ void enterPressed() {
           lcd.setCursor(12,1);
           lcd.print(currentTemp);
           lcd.setCursor(0, 0);
-          if(motorState)
+          if(bldc_motorState)
           lcd.print("Turned ON");
           else
           lcd.print("Turned OFF");
@@ -479,7 +487,7 @@ void enterPressed() {
           lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("MOT:");
-          lcd.print(motorSpeed);
+          lcd.print(bldc_motorSpeed);
           lcd.setCursor(0,1);
           lcd.print("Tuning");
           break;
@@ -601,7 +609,7 @@ void exitPressed() {
             lcd.setCursor(12,1);
             lcd.print(currentTemp);
             lcd.setCursor(0,0);
-            if(!motorState)
+            if(!bldc_motorState)
               lcd.print(">Motor:OFF");
             else 
               lcd.print(">Motor:ON");
@@ -741,7 +749,7 @@ void exitPressed() {
            }
 
         else if(menu1==2){
-          motorSpeed=0;
+          bldc_motorSpeed=0;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -749,7 +757,7 @@ void exitPressed() {
           lcd.print(currentTemp);
           lcd.setCursor(0, 0);
           lcd.print("MOT:");
-          lcd.print(motorSpeed);
+          lcd.print(bldc_motorSpeed);
           lcd.setCursor(0,1);
           lcd.print("Tuning");
       }
@@ -851,11 +859,11 @@ void encoderChanged() {
             break;
         case 2:
           if(change>0)
-              motorSpeed+=2;
+              bldc_motorSpeed+=2;
             else
-              motorSpeed-=2;
+              bldc_motorSpeed-=2;
             lcd.setCursor(4,0);
-            lcd.print(motorSpeed);
+            lcd.print(bldc_motorSpeed);
       }
     }
     
@@ -987,7 +995,7 @@ void encoderChanged() {
             lcd.setCursor(12,1);
             lcd.print(currentTemp);
             lcd.setCursor(0,0);
-            if(!motorState)
+            if(!bldc_motorState)
               lcd.print(">Motor:OFF");
             else 
             lcd.print(">Motor:ON");
