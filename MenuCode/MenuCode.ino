@@ -27,11 +27,6 @@
 #define enterButtonPin 1
 #define exitButtonPin 0 
 
-int setTemp=0;
-double temp1;
-double temp2;
-double temp3;
-
 // Initialize the LCD with I2C address 0x27 and 16 columns and 2 rows
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
@@ -64,16 +59,22 @@ int augSpeed=0;
 // Spooler Variables
 int spoolSpeed=0;
 
+// Temperature control variables
+int setTemp=0;
+double temp1;
+double temp2;
+double temp3;
+bool heatingProcess = false;
+
 // PID for Temp
 double tempKp = 75.3;
 double tempKi = 0;
 double tempKd = 10;
-float temp_PID_error = 0;
-float temp_previous_error = 0;
-float temp_pid_timePrev;
+float temp_PID_error[3] = {0};
+float temp_previous_error[3] = {0};
+float temp_pid_timePrev[3] = {0};
 
 // Thermistor Variables
-int thermistor_adc_val;
 double output_voltage, thermistor_resistance, therm_res_ln, temperature; 
 
 
@@ -82,6 +83,9 @@ void enterPressed();
 void exitPressed();
 void encoderChanged();
 void runBLDC();
+int getThermistorTemperature(int);
+void runPidAlgo(double,int,int);
+void gBase(int);
 
 void setup() {
   // Initialize the LCD
@@ -115,9 +119,32 @@ void loop() {
   // Read the current state of the Enter and Exit buttons
   int enterButtonState = digitalRead(enterButtonPin);
   int exitButtonState = digitalRead(exitButtonPin);
-  temp1= getThermistorTemperature(ThermistorPin1);
+
+  temp1 = getThermistorTemperature(ThermistorPin1);
   temp2 = getThermistorTemperature(ThermistorPin2);
   temp3 = getThermistorTemperature(ThermistorPin3);
+
+  //Vineeth: Those are not the only cases
+  //Vineeth: Say your running pid for lik e 30 seconds
+  //Vineeth: Ad your about 30-50 degrees away from Target
+  // If your heating value doesn't change at all
+  // eg : Thermistor came out of its holder
+  // Idea: Doesn't change more than threshold
+
+  if(temp1 < 0 && temp1 > 250){
+    heatingProcess = false;
+  }
+
+  if(heatingProcess){
+    runPidAlgo(temp1,setTemp,temp_PWM_Pin1,0);
+    runPidAlgo(temp2,setTemp-20,temp_PWM_Pin2,1);
+    runPidAlgo(temp3,setTemp-40,temp_PWM_Pin3,2);
+  }
+  else{
+    analogWrite(temp_PWM_Pin1,255);
+    analogWrite(temp_PWM_Pin2,255);
+    analogWrite(temp_PWM_Pin3,255);
+  }
 
   if(bldc_motorState) runBLDC();
 
@@ -160,7 +187,7 @@ void runBLDC(){
 }
 
 int getThermistorTemperature(int pin){
-  thermistor_adc_val = analogRead(pin);
+  int thermistor_adc_val = analogRead(pin);
   output_voltage = ( (thermistor_adc_val * 5.0) / 1023.0 );
   thermistor_resistance = ( (47*output_voltage)/(5-output_voltage) ); /* Resistance in kilo ohms */
   thermistor_resistance = thermistor_resistance * 1000 ; /* Resistance in ohms   */
@@ -172,18 +199,18 @@ int getThermistorTemperature(int pin){
 
   return temperature;
 }
-void runPidAlgo(double temp,int setTemp,int PWM_Pin){
 
+void runPidAlgo(double temp,int setTemp,int PWM_Pin,int i){
   // Calculating time elapsed
-  temp_pid_timePrev = Time;                            
+  temp_pid_timePrev[i] = Time;                            
   int Time = millis();
-  double elapsedTime = (Time - temp_pid_timePrev) / 1000; 
+  double elapsedTime = (Time - temp_pid_timePrev[i]) / 1000; 
 
   // Calculating the PID_Values
-  temp_PID_error = setTemp - temp;
-  double PID_p = tempKp * temp_PID_error;
-  double PID_i = (PID_i + (tempKi * temp_PID_error)*elapsedTime);
-  double ID_d = tempKd*((temp_PID_error - previous_error)/elapsedTime);
+  temp_PID_error[i] = setTemp - temp;
+  double PID_p = tempKp * temp_PID_error[i];
+  double PID_i = (PID_i + (tempKi * temp_PID_error[i])*elapsedTime);
+  double ID_d = tempKd*((temp_PID_error[i] - previous_error)/elapsedTime);
 
   // PID_Value = P + I + D
   double PID_value = PID_p + PID_i + PID_d;
@@ -193,12 +220,12 @@ void runPidAlgo(double temp,int setTemp,int PWM_Pin){
   // Plotting set_temp vs current_temp
    
   analogWrite(PWM_Pin,255-PID_value);
-  temp_previous_error = temp_PID_error;
+  temp_previous_error[i] = temp_PID_error[i];
   delay(20);
   return temp;
 }
 
-void GBase(int baseState){
+void gBase(int baseState){
   if(baseState){
      gBaseServo.write(45);
      delay(500);
@@ -380,13 +407,13 @@ void enterPressed() {
         if(!baseState){
            lcd.print("OPEN ");
            baseState=true;
-           GBase(baseState);
+           gBase(baseState);
            bldc_motorState=false;
         }
         else{
           lcd.print("CLOSE");
           baseState=false;
-          GBase(baseState);
+          gBase(baseState);
 
         }
         // turn on the motor
