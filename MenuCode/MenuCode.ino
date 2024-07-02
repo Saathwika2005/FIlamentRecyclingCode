@@ -59,8 +59,16 @@ int augSpeed=0;
 // Spooler Variables
 int spoolSpeed=0;
 
+// Temperature Safety Variables
+int lastTimeElapsedSafe[3] = {0};
+int lastTemp[3] = {0};
+int threshold_min_change = 5;
+bool heatingProcessLast = true;
+
 // Temperature control variables
 int setTemp=0;
+const int firstTempDiff = 20;
+const int secondTempDiff = 40;
 double temp1;
 double temp2;
 double temp3;
@@ -74,9 +82,6 @@ float temp_PID_error[3] = {0};
 float temp_previous_error[3] = {0};
 float temp_pid_timePrev[3] = {0};
 
-// Thermistor Variables
-double output_voltage, thermistor_resistance, therm_res_ln, temperature; 
-
 
 // Function prototypes
 void enterPressed();
@@ -86,6 +91,7 @@ void runBLDC();
 int getThermistorTemperature(int);
 void runPidAlgo(double,int,int);
 void gBase(int);
+void checkTemperatureSafety(int,int);
 
 void setup() {
   // Initialize the LCD
@@ -124,21 +130,28 @@ void loop() {
   temp2 = getThermistorTemperature(ThermistorPin2);
   temp3 = getThermistorTemperature(ThermistorPin3);
 
-  //Vineeth: Those are not the only cases
-  //Vineeth: Say your running pid for lik e 30 seconds
-  //Vineeth: Ad your about 30-50 degrees away from Target
-  // If your heating value doesn't change at all
-  // eg : Thermistor came out of its holder
-  // Idea: Doesn't change more than threshold
-
-  if(temp1 < 0 && temp1 > 250){
-    heatingProcess = false;
+  // Keep track of currentBool and LastBool so that lastTimeElapsed is accurate
+  if(heatingProcess && heatingProcessLast){
+    heatingProcessLast = false;
+    lastTimeElapsedSafe[0] = lastTimeElapsedSafe[1] = lastTimeElapsedSafe[2] = 0;
+    lastTemp[0] = lastTemp[1] = lastTemp[2] = 0;
   }
 
+  // Keep track
+  if(!heatingProcess && !heatingProcessLast) {
+     heatingProcessLast = true;
+  }
+
+  // Check if temperature readings are safe
+  checkTemperatureSafety(temp1,0);
+  checkTemperatureSafety(temp2,1);
+  checkTemperatureSafety(temp3,2);
+
+  // If heating process is initiated then runPID
   if(heatingProcess){
     runPidAlgo(temp1,setTemp,temp_PWM_Pin1,0);
-    runPidAlgo(temp2,setTemp-20,temp_PWM_Pin2,1);
-    runPidAlgo(temp3,setTemp-40,temp_PWM_Pin3,2);
+    runPidAlgo(temp2,setTemp-firstTempDiff,temp_PWM_Pin2,1);
+    runPidAlgo(temp3,setTemp-secondTempDiff,temp_PWM_Pin3,2);
   }
   else{
     analogWrite(temp_PWM_Pin1,255);
@@ -188,13 +201,13 @@ void runBLDC(){
 
 int getThermistorTemperature(int pin){
   int thermistor_adc_val = analogRead(pin);
-  output_voltage = ( (thermistor_adc_val * 5.0) / 1023.0 );
-  thermistor_resistance = ( (47*output_voltage)/(5-output_voltage) ); /* Resistance in kilo ohms */
+  double output_voltage = ( (thermistor_adc_val * 5.0) / 1023.0 );
+  double thermistor_resistance = ( (47*output_voltage)/(5-output_voltage) ); /* Resistance in kilo ohms */
   thermistor_resistance = thermistor_resistance * 1000 ; /* Resistance in ohms   */
-  therm_res_ln = log(thermistor_resistance);
+  double therm_res_ln = log(thermistor_resistance);
   /*  Steinhart-Hart Thermistor Equation: */
   /*  Temperature in Kelvin = 1 / (A + B[ln(R)] + C[ln(R)]^3)   */
-  temperature = ( 1 / ( 0.00053085725+ ( 0.00023960398 * therm_res_ln ) +( 0.0000000423434340345 * therm_res_ln * therm_res_ln * therm_res_ln ) ) ); /* Temperature in Kelvin */
+  double temperature = ( 1 / ( 0.00053085725+ ( 0.00023960398 * therm_res_ln ) +( 0.0000000423434340345 * therm_res_ln * therm_res_ln * therm_res_ln ) ) ); /* Temperature in Kelvin */
   temperature = temperature - 273.15; /* Temperature in degree Celsius */
 
   return temperature;
@@ -223,6 +236,39 @@ void runPidAlgo(double temp,int setTemp,int PWM_Pin,int i){
   temp_previous_error[i] = temp_PID_error[i];
   delay(20);
   return temp;
+}
+
+// Update is required
+void checkTemperatureSafety(int temp,int i){
+    int time = millis();
+
+    // if the temp is under pid control there will not be jump of temperature so check is not required -> Control Temp1
+    if(i == 0 && setTemp - 30 < temp && setTemp + 30 > temp ){
+        return;
+    }
+
+    // if the temp is under pid control there will not be jump of temperature so check is not required -> Control Temp2
+    if(i == 1 && setTemp-firstTempDiff - 30 < temp && setTemp-firstTempDiff + 30 > temp ){
+        return;
+    }
+
+    // if the temp is under pid control there will not be jump of temperature so check is not required -> Control Temp3
+    if(i == 2 && setTemp-secondTempDiff - 30 < temp && setTemp-secondTempDiff + 30 > temp ){
+        return;
+    }
+    
+    // Comparing current temp and temp 20 sec ago -> difference must be exceeding the threshold else there is some problem 
+    if(lastTemp[i] != 0 && time - lastTimeElapsedSafe[i] >= 20*1000){
+      if(temp-lastTemp[i] < threshold_min_change){
+          heatingProcess = false;
+      }
+      lastTimeElapsedSafe[i] = time;
+      lastTemp[i] = temp;
+    }
+
+    // if this is the first temperature check after heatingProcess has been true then set currentTemp as lastTemp
+    if(lastTemp[i] == 0)
+      lastTemp[i] = temp;
 }
 
 void gBase(int baseState){
