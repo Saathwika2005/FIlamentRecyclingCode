@@ -21,9 +21,9 @@
 #define lcdEncoderPinB 7
 #define spoolHBridge 6 // ~
 #define augerHBridge 5 // ~
-#define lcdEncoderPinA 4 
-#define spoolerEncoderPinB 3 // ~
-#define augerEncoderPin 2 // interrupts
+#define lcdEncoderPinA 4
+#define augerEncoderPin 3
+#define spoolerEncoderPinB 2 // interrupts
 #define enterButtonPin 1
 #define exitButtonPin 0 
 
@@ -69,9 +69,6 @@ bool heatingProcessLast = true;
 int setTemp=0;
 const int firstTempDiff = 20;
 const int secondTempDiff = 40;
-double temp1;
-double temp2;
-double temp3;
 bool heatingProcess = false;
 
 // PID for Temp
@@ -81,6 +78,8 @@ double tempKd = 10;
 float temp_PID_error[3] = {0};
 float temp_previous_error[3] = {0};
 float temp_pid_timePrev[3] = {0};
+
+double currentTemp;
 
 
 // Function prototypes
@@ -118,7 +117,6 @@ void setup() {
 
   // Initialize the encoder
   myEnc.write(0);
-  Serial.begin(9600);
 }
 
 void loop() {
@@ -126,9 +124,10 @@ void loop() {
   int enterButtonState = digitalRead(enterButtonPin);
   int exitButtonState = digitalRead(exitButtonPin);
 
-  temp1 = getThermistorTemperature(ThermistorPin1);
-  temp2 = getThermistorTemperature(ThermistorPin2);
-  temp3 = getThermistorTemperature(ThermistorPin3);
+  double temp1 = getThermistorTemperature(ThermistorPin1);
+  currentTemp = temp1;
+  double temp2 = getThermistorTemperature(ThermistorPin2);
+  double temp3 = getThermistorTemperature(ThermistorPin3);
 
   // Keep track of currentBool and LastBool so that lastTimeElapsed is accurate
   if(heatingProcess && heatingProcessLast){
@@ -183,14 +182,6 @@ void loop() {
     previousEncoderPosition = encoderPosition;
   }
  
-  Serial.print("level:");
-  Serial.print(level);
-  Serial.print("    menu0:");
-  Serial.print(menu0);
-  Serial.print("   menu1:");
-  Serial.print(menu1);
-  Serial.print("   menu2:");
-  Serial.println(menu2);
 }
 
 void runBLDC(){
@@ -214,16 +205,16 @@ int getThermistorTemperature(int pin){
 }
 
 void runPidAlgo(double temp,int setTemp,int PWM_Pin,int i){
+  int Time = millis();
   // Calculating time elapsed
   temp_pid_timePrev[i] = Time;                            
-  int Time = millis();
   double elapsedTime = (Time - temp_pid_timePrev[i]) / 1000; 
 
   // Calculating the PID_Values
   temp_PID_error[i] = setTemp - temp;
   double PID_p = tempKp * temp_PID_error[i];
   double PID_i = (PID_i + (tempKi * temp_PID_error[i])*elapsedTime);
-  double ID_d = tempKd*((temp_PID_error[i] - previous_error)/elapsedTime);
+  double PID_d = tempKd*((temp_PID_error[i] - temp_previous_error[i])/elapsedTime);
 
   // PID_Value = P + I + D
   double PID_value = PID_p + PID_i + PID_d;
