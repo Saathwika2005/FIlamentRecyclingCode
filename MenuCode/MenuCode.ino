@@ -91,11 +91,22 @@ int getThermistorTemperature(int);
 void runPidAlgo(double,int,int);
 void gBase(int);
 void checkTemperatureSafety(int,int);
+byte enterChar[] = {
+  B00000,
+  B00101,
+  B01001,
+  B11111,
+  B01000,
+  B00100,
+  B00000,
+  B00000
+};
 
 void setup() {
   // Initialize the LCD
   lcd.init();
   lcd.backlight();
+  lcd.home();
   
   // Set up the pushbutton pins as input with pull-up resistors
   pinMode(enterButtonPin, INPUT_PULLUP);
@@ -120,6 +131,7 @@ void setup() {
 }
 
 void loop() {
+  lcd.createChar(0,enterChar);
   // Read the current state of the Enter and Exit buttons
   int enterButtonState = digitalRead(enterButtonPin);
   int exitButtonState = digitalRead(exitButtonPin);
@@ -342,7 +354,8 @@ void enterPressed() {
           lcd.print("TEMP:");
           lcd.print(setTemp);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
         case 1:
          setTemp=260;
@@ -355,7 +368,8 @@ void enterPressed() {
           lcd.print("TEMP:");
           lcd.print(setTemp);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
         case 2:
          setTemp=240;
@@ -368,7 +382,8 @@ void enterPressed() {
           lcd.print("TEMP:");
           lcd.print(setTemp);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
         case 3:
          setTemp=100;
@@ -381,7 +396,8 @@ void enterPressed() {
           lcd.print("TEMP:");
           lcd.print(setTemp);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
         // Add code to handle menu1 items
       }
@@ -400,7 +416,8 @@ void enterPressed() {
           lcd.print("AUG:");
           lcd.print(augSpeed);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
         case 1:
           spoolSpeed=0;
@@ -413,7 +430,8 @@ void enterPressed() {
           lcd.print("SPOOL:");
           lcd.print(spoolSpeed);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
          
       }
@@ -466,7 +484,8 @@ void enterPressed() {
           lcd.print("MOTOR:");
           lcd.print(bldc_motorSpeed);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
       }
     }
@@ -568,7 +587,8 @@ void enterPressed() {
     level=2;
     if(menu0==0||menu0==1||(menu0==2 && menu1==2)){
     lcd.setCursor(0,1);
-    lcd.print("/ to tune");
+    lcd.write(0);
+    lcd.print(" to tune");
     
   }
 }
@@ -723,7 +743,8 @@ void exitPressed() {
           lcd.print("TEMP:");
           lcd.print(setTemp);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
         case 1:
          setTemp=260;
@@ -736,7 +757,8 @@ void exitPressed() {
           lcd.print("TEMP:");
           lcd.print(setTemp);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
         case 2:
          setTemp=245;
@@ -749,7 +771,8 @@ void exitPressed() {
           lcd.print("TEMP:");
           lcd.print(setTemp);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
         case 3:
          setTemp=100;
@@ -762,7 +785,8 @@ void exitPressed() {
           lcd.print("TEMP:");
           lcd.print(setTemp);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break; 
         }
       }
@@ -780,7 +804,8 @@ void exitPressed() {
           lcd.print("AUG:");
           lcd.print(augSpeed);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
         case 1:
           spoolSpeed=0;
@@ -793,7 +818,8 @@ void exitPressed() {
           lcd.print("SPOOL:");
           lcd.print(spoolSpeed);
           lcd.setCursor(0,1);
-          lcd.print("/ to tune");
+          lcd.write(0);
+          lcd.print(" to tune");
           break;
          
       }
