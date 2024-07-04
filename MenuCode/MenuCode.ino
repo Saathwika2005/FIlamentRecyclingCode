@@ -27,6 +27,32 @@
 #define enterButtonPin 1
 #define exitButtonPin 0 
 
+// Spooler Variables
+#define initialRadiusOfSpool 8.0 // in cm
+#define spoolerWidth 7.0 // cm 
+#define filamentDiameter 0.175 // in cm
+#define minimumRotationsForOneLayer 40 // no of turns for each layer
+#define targetLinearVelocity 2.0 // in cm/s
+#define MOTAR_MAX_SPEED 0.43 // in rps
+#define RotaryRotation 60
+
+int spoolRotaryLastState = 0;
+// Spooler Mechanism Params
+float newRadius;
+float angularVelocityOfSpool;
+float Kp = 300;
+float Ki = 10;
+float Kd = 1;
+float previousError = 0;
+float integral = 11; // integral value assuming that minimum speed of the spooler motar is 0.15 rps
+unsigned long lastTime = 0;
+// Encoder setup to determine speed in rps and also to find no of rotations done 
+Encoder spoolerEnc(13, 12);
+double rotations;
+double prevRotations;
+double prevTime;
+
+
 // Initialize the LCD with I2C address 0x27 and 16 columns and 2 rows
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
@@ -89,6 +115,8 @@ int getThermistorTemperature(int);
 void runPidAlgo(double,int,int);
 void gBase(int);
 void checkTemperatureSafety(int,int);
+void PidControl(double);
+void spoolerLogic();
 
 byte enterChar[] = {
   B00000,
@@ -130,6 +158,10 @@ void setup() {
 
   // Initialize the encoder
   myEnc.write(0);
+
+  prevTime = 0;
+  angularVelocityOfSpool = targetLinearVelocity/initialRadiusOfSpool; // Calculate the initial angular velocity of spooler
+  newRadius = initialRadiusOfSpool;
 }
 
 void loop() {
@@ -177,7 +209,19 @@ void loop() {
   if(bldc_motorState) runBLDC();
 
   // auger run
+  augSpeed = constrain(augSpeed,0,100);
   analogWrite(augerHBridge,map(augSpeed,0,100,0,255));
+
+  // spoolrun
+  spoolerLogic();
+  double time = millis()/1000.0;
+  if((time-prevTime) > 0.5) {
+    rotations = abs(spoolerEnc.read()/60.0);
+    double rps = (rotations-prevRotations)/(time-prevTime);
+    if(spoolSpeed != 0) PidControl(rps);  
+    prevTime = time;
+    prevRotations = rotations;
+  }
 
   // Enter / Exit Pressed or Encoder Position has been changed
   if(true){
@@ -205,8 +249,40 @@ void loop() {
  
 }
 
+void PidControl(double rps){
+  unsigned long currentTime = millis();
+  float deltaTime = (currentTime - lastTime) / 1000.0;
+  lastTime = currentTime;
+
+  float error = angularVelocityOfSpool - rps;
+
+  float P = Kp * error;
+  integral += error * deltaTime;
+  float I = Ki * integral;
+  float D = Kd * (error - previousError) / deltaTime;
+
+  float pidOutput = P + I + D;
+  pidOutput = constrain(pidOutput,0,255);
+  analogWrite(spoolHBridge, pidOutput);
+  previousError = error; // Update previous error for next iteration
+}
+
+void spoolerLogic(){
+  long spoolRotaryState = spoolerEnc.read();
+  int noOfRotationsDone = (abs(spoolRotaryState) - abs(spoolRotaryLastState))/RotaryRotation;
+  
+  if(noOfRotationsDone > minimumRotationsForOneLayer) {
+      newRadius += filamentDiameter;
+      angularVelocityOfSpool = targetLinearVelocity/newRadius;
+      spoolRotaryLastState = spoolRotaryState;
+  }
+}
+
+
 void runBLDC(){
-  int speed = map(bldc_motorSpeed, 0, 100, 1000, 2000);
+  bldc_motorSpeed = constrain(bldc_motorSpeed,0,100);
+
+  int speed = map(speed, 0, 100, 1000, 2000);
   if(bldc_motorState == false) speed = 1000;
   bldc.write(speed);
 }
