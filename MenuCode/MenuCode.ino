@@ -345,6 +345,7 @@ void enterPressed() {
       switch (menu1) {
         case 0:
          setTemp=220;
+         heatingProcessLast=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -359,6 +360,7 @@ void enterPressed() {
           break;
         case 1:
          setTemp=260;
+         heatingProcessLast=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -373,6 +375,7 @@ void enterPressed() {
           break;
         case 2:
          setTemp=240;
+         heatingProcessLast=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -387,6 +390,7 @@ void enterPressed() {
           break;
         case 3:
          setTemp=100;
+         heatingProcessLast=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -734,6 +738,7 @@ void exitPressed() {
       switch (menu1) {
         case 0:
          setTemp=220;
+         heatingProcessLast=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -748,6 +753,7 @@ void exitPressed() {
           break;
         case 1:
          setTemp=260;
+         heatingProcessLast=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -762,6 +768,7 @@ void exitPressed() {
           break;
         case 2:
          setTemp=245;
+         heatingProcessLast=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -776,6 +783,7 @@ void exitPressed() {
           break;
         case 3:
          setTemp=100;
+         heatingProcessLast=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
