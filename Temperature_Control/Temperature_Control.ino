@@ -4,26 +4,27 @@
 
 #define pushBtn 2
 #define ThermistorPin1 A0
-#define ThermistorPin2 A2
+#define ThermistorPin2 A1
 #define ThermistorPin3 A2
 
-#define PWM_Pin1 3
-#define PWM_Pin2 5
-#define PWM_Pin3 6
+#define PWM_Pin1 11
+#define PWM_Pin2 10
+#define PWM_Pin3 9
 
-#define setTemp1 200.00
-#define setTemp2 200.00
 #define setTemp3 220.00
+#define setTemp2 200.00
+#define setTemp1 180.00
 
 // Set the LCD address to 0x27 for a 16 chars and 2 line display
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-double Kp = 75.3;
-double Ki = 0;
-double Kd = 10;
-
-double dt, last_time;
-double integral, previous, output = 0;
+// PID for Temp
+double tempKp = 75.3;
+double tempKi = 0;
+double tempKd = 10;
+float temp_PID_error[3] = {0};
+float temp_previous_error[3] = {0};
+float temp_pid_timePrev[3] = {0};
 
 float temperature_read = 0.0;
 float PID_error = 0;
@@ -38,7 +39,7 @@ double output_voltage, thermistor_resistance, therm_res_ln, temperature;
 
 void setup() {
   Serial.begin(9600);
-  lcd.begin();
+  lcd.init();
   lcd.backlight();
   Time = millis();
   lcdTimePrev = Time;
@@ -47,6 +48,10 @@ void setup() {
   pinMode(PWM_Pin1,OUTPUT);
   pinMode(PWM_Pin2,OUTPUT);
   pinMode(PWM_Pin3,OUTPUT);
+
+  // analogWrite(PWM_Pin1,100);
+  // analogWrite(PWM_Pin2,100);
+  // analogWrite(PWM_Pin3,100);
 }
 
 int getThermistorTemperature(int pin){
@@ -63,69 +68,50 @@ int getThermistorTemperature(int pin){
   return temperature;
 }
 
-void runPidAlgo(double temp,int setTemp,int PWM_Pin){
-
-  // // Calculating time elapsed
-  timePrev = Time;                            
-  Time = millis();
-  elapsedTime = (Time - timePrev) / 1000; 
+void runPidAlgo(double temp,int setTemp,int PWM_Pin,int i){
+  int Time = millis();
+  // Calculating time elapsed
+  temp_pid_timePrev[i] = Time;                            
+  double elapsedTime = (Time - temp_pid_timePrev[i]) / 1000; 
 
   // Calculating the PID_Values
-  PID_error = setTemp - temp;
-
-  Serial.print("elapsedTime Value: ");
-  Serial.println(elapsedTime);
-
-  PID_p = Kp * PID_error;
-  PID_i = (PID_i + (Ki * PID_error)*elapsedTime);
-  PID_d = Kd*((PID_error - previous_error)/elapsedTime);
+  temp_PID_error[i] = setTemp - temp;
+  double PID_p = tempKp * temp_PID_error[i];
+  double PID_i = (PID_i + (tempKi * temp_PID_error[i])*elapsedTime);
+  double PID_d = tempKd*((temp_PID_error[i] - temp_previous_error[i])/elapsedTime);
 
   // PID_Value = P + I + D
-  PID_value = PID_p + PID_i + PID_d;
+  double PID_value = PID_p + PID_i + PID_d;
+  
+  PID_value = constrain(PID_value,0,200);
 
-  Serial.print("PID Value: ");
-  Serial.println(PID_value);
-
-  if(PID_value < 0) PID_value = 0; 
-  if(PID_value > 255) PID_value = 255; 
-
-  Serial.print("converted Value: ");
-  Serial.println(PID_value);
-
-
-  // Plotting set_temp vs current_temp
-    Serial.print(setTemp);
-    Serial.print(",");
+  if(Time-lcdTimePrev > 1000){
+    Serial.print("Temp");
+    Serial.print(i);
+    Serial.print(":");
     Serial.println(temp);
 
-  // Negating the signal
-  analogWrite(PWM_Pin,255-PID_value);
-  previous_error = PID_error;
-  
-  // Delaying for 1s for lcd print
-  if(Time - lcdTimePrev > 1000){
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print(255-PID_value);
-    lcd.setCursor(0,1);
-    lcd.print("T:");
-    lcd.setCursor(3,1);
-    lcd.print(temp);
+    Serial.print("PID_Value:");
+    Serial.println(255-PID_value);
+
     lcdTimePrev = Time;
   }
-  
+   
+  analogWrite(PWM_Pin,255-PID_value);
+  temp_previous_error[i] = temp_PID_error[i];
   delay(20);
+  return temp;
 }
 
 void loop() {
   
   double temp1 = getThermistorTemperature(ThermistorPin1);
-  // double temp2 = getThermistorTemperature(ThermistorPin2);
-  // double temp3 = getThermistorTemperature(ThermistorPin3);
+  double temp2 = getThermistorTemperature(ThermistorPin2);
+  double temp3 = getThermistorTemperature(ThermistorPin3);
   
   
-  runPidAlgo(temp1,setTemp1,PWM_Pin1);
-  // runPidAlgo(temp2,setTemp2,PWM_Pin2);
-  // runPidAlgo(temp3,setTemp3,PWM_Pin3);
+  runPidAlgo(temp1,setTemp1,PWM_Pin1,0);
+  runPidAlgo(temp2,setTemp2,PWM_Pin2,1);
+  runPidAlgo(temp3,setTemp3,PWM_Pin3,2);
   
 }

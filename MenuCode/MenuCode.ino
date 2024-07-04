@@ -69,18 +69,16 @@ bool heatingProcessLast = true;
 int setTemp=0;
 const int firstTempDiff = 20;
 const int secondTempDiff = 40;
-bool heatingProcess = false;
+bool heatingProcess = true;
 
 // PID for Temp
 double tempKp = 75.3;
 double tempKi = 0;
 double tempKd = 10;
-float temp_PID_error[3] = {0};
 float temp_previous_error[3] = {0};
 float temp_pid_timePrev[3] = {0};
 
 double currentTemp;
-
 
 // Function prototypes
 void enterPressed();
@@ -91,6 +89,7 @@ int getThermistorTemperature(int);
 void runPidAlgo(double,int,int);
 void gBase(int);
 void checkTemperatureSafety(int,int);
+
 byte enterChar[] = {
   B00000,
   B00101,
@@ -115,6 +114,9 @@ void setup() {
   pinMode(temp_PWM_Pin2,OUTPUT);
   pinMode(temp_PWM_Pin3,OUTPUT);
 
+  pinMode(augerHBridge,OUTPUT);
+  pinMode(spoolHBridge,OUTPUT);
+
   // Setting up the bldc motor
   bldc.attach(bldcPin,1000,2000);
   bldc.write(2000); 
@@ -137,34 +139,36 @@ void loop() {
   int exitButtonState = digitalRead(exitButtonPin);
 
   double temp1 = getThermistorTemperature(ThermistorPin1);
-  currentTemp = temp1;
   double temp2 = getThermistorTemperature(ThermistorPin2);
   double temp3 = getThermistorTemperature(ThermistorPin3);
 
+  currentTemp = temp3;
+
   // Keep track of currentBool and LastBool so that lastTimeElapsed is accurate
-  if(heatingProcess && heatingProcessLast){
-    heatingProcessLast = false;
-    lastTimeElapsedSafe[0] = lastTimeElapsedSafe[1] = lastTimeElapsedSafe[2] = 0;
-    lastTemp[0] = lastTemp[1] = lastTemp[2] = 0;
-  }
+  // if(heatingProcess && heatingProcessLast){
+  //   heatingProcessLast = false;
+  //   lastTimeElapsedSafe[0] = lastTimeElapsedSafe[1] = lastTimeElapsedSafe[2] = 0;
+  //   lastTemp[0] = lastTemp[1] = lastTemp[2] = 0;
+  // }
 
   // Keep track
-  if(!heatingProcess && !heatingProcessLast) {
-     heatingProcessLast = true;
-  }
+  // if(!heatingProcess && !heatingProcessLast) {
+  //    heatingProcessLast = true;
+  // }
 
   // Check if temperature readings are safe
-  checkTemperatureSafety(temp1,0);
-  checkTemperatureSafety(temp2,1);
-  checkTemperatureSafety(temp3,2);
+  // checkTemperatureSafety(temp1,0);
+  // checkTemperatureSafety(temp2,1);
+  // checkTemperatureSafety(temp3,2);
 
   // If heating process is initiated then runPID
-  if(heatingProcess){
+  if(heatingProcess && setTemp!=0){
     runPidAlgo(temp1,setTemp,temp_PWM_Pin1,0);
-    runPidAlgo(temp2,setTemp-firstTempDiff,temp_PWM_Pin2,1);
-    runPidAlgo(temp3,setTemp-secondTempDiff,temp_PWM_Pin3,2);
+    runPidAlgo(temp2,max(setTemp-firstTempDiff,0),temp_PWM_Pin2,1);
+    runPidAlgo(temp3,max(setTemp-secondTempDiff,0),temp_PWM_Pin3,2);
   }
-  else{
+  else
+  {
     analogWrite(temp_PWM_Pin1,255);
     analogWrite(temp_PWM_Pin2,255);
     analogWrite(temp_PWM_Pin3,255);
@@ -172,26 +176,31 @@ void loop() {
 
   if(bldc_motorState) runBLDC();
 
-  // Read the current position of the encoder
-  long encoderPosition = myEnc.read();
+  // auger run
+  analogWrite(augerHBridge,map(augSpeed,0,100,0,255));
 
-  // Check if Enter button is pressed
-  if (enterButtonState == LOW && previousEnterButtonState == HIGH) {
-    enterPressed();
-    delay(300);
-  }
-  previousEnterButtonState = enterButtonState;
-  // Check if Exit button is pressed
-  if (exitButtonState == LOW && previousExitButtonState == HIGH) {
-    exitPressed();
-    delay(300);
-  }
-  previousExitButtonState = exitButtonState;
+  // Enter / Exit Pressed or Encoder Position has been changed
+  if(true){
+    // Read the current position of the encoder
+    long encoderPosition = myEnc.read();
+    // Check if Enter button is pressed
+    if (enterButtonState == LOW && previousEnterButtonState == HIGH) {
+      enterPressed();
+      delay(300);
+    }
+    previousEnterButtonState = enterButtonState;
+    // Check if Exit button is pressed
+    if (exitButtonState == LOW && previousExitButtonState == HIGH) {
+      exitPressed();
+      delay(300);
+    }
+    previousExitButtonState = exitButtonState;
 
-  // Check if the encoder position has changed
-  if ((encoderPosition - previousEncoderPosition)>1 || (encoderPosition - previousEncoderPosition)<-1) {
-    encoderChanged();
-    previousEncoderPosition = encoderPosition;
+    // Check if the encoder position has changed
+    if ((encoderPosition - previousEncoderPosition)>1 || (encoderPosition - previousEncoderPosition)<-1) {
+      encoderChanged();
+      previousEncoderPosition = encoderPosition;
+    }
   }
  
 }
@@ -223,22 +232,20 @@ void runPidAlgo(double temp,int setTemp,int PWM_Pin,int i){
   double elapsedTime = (Time - temp_pid_timePrev[i]) / 1000; 
 
   // Calculating the PID_Values
-  temp_PID_error[i] = setTemp - temp;
-  double PID_p = tempKp * temp_PID_error[i];
-  double PID_i = (PID_i + (tempKi * temp_PID_error[i])*elapsedTime);
-  double PID_d = tempKd*((temp_PID_error[i] - temp_previous_error[i])/elapsedTime);
+  double error = setTemp - temp;
+  double PID_p = tempKp * error;
+  double PID_i = (PID_i + (tempKi * error)*elapsedTime);
+  double PID_d = tempKd*((error - temp_previous_error[i])/elapsedTime);
 
   // PID_Value = P + I + D
   double PID_value = PID_p + PID_i + PID_d;
-  if(PID_value < 0) PID_value = 0; 
-  if(PID_value > 255) PID_value = 255; 
-
-  // Plotting set_temp vs current_temp
+  
+  PID_value = constrain(PID_value,0,200);
    
   analogWrite(PWM_Pin,255-PID_value);
-  temp_previous_error[i] = temp_PID_error[i];
+
+  temp_previous_error[i] = error;
   delay(20);
-  return temp;
 }
 
 // Update is required
@@ -345,7 +352,7 @@ void enterPressed() {
       switch (menu1) {
         case 0:
          setTemp=220;
-         heatingProcessLast=true;
+         heatingProcess=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -360,7 +367,7 @@ void enterPressed() {
           break;
         case 1:
          setTemp=260;
-         heatingProcessLast=true;
+         heatingProcess=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -375,7 +382,7 @@ void enterPressed() {
           break;
         case 2:
          setTemp=240;
-         heatingProcessLast=true;
+         heatingProcess=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -390,7 +397,7 @@ void enterPressed() {
           break;
         case 3:
          setTemp=100;
-         heatingProcessLast=true;
+         heatingProcess=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -738,7 +745,7 @@ void exitPressed() {
       switch (menu1) {
         case 0:
          setTemp=220;
-         heatingProcessLast=true;
+         heatingProcess=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -753,7 +760,7 @@ void exitPressed() {
           break;
         case 1:
          setTemp=260;
-         heatingProcessLast=true;
+         heatingProcess=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -768,7 +775,7 @@ void exitPressed() {
           break;
         case 2:
          setTemp=245;
-         heatingProcessLast=true;
+         heatingProcess=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
@@ -783,7 +790,7 @@ void exitPressed() {
           break;
         case 3:
          setTemp=100;
-         heatingProcessLast=true;
+         heatingProcess=true;
           lcd.clear();
           lcd.setCursor(12,0);
           lcd.print("TEMP");
